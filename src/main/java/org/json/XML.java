@@ -556,7 +556,42 @@ public class XML {
                 || val.indexOf('E') > -1 || "-0".equals(val);
     }
 
+    /*
+    which does, inside the library, the same thing that task 2 of milestone 1 did in client code,
+    before writing to disk. Being this done inside the library,
+    you should be able to do it more efficiently.
+    Specifically, you shouldn't need to read the entire XML file,
+    as you can stop parsing it as soon as you find the object in question.
+     */
+    public static JSONObject toJSONObject(Reader reader, JSONPointer path) {
+        JSONObject jo = new JSONObject();
+        XMLTokener x = new XMLTokener(reader);
+        while (x.more()) {
+            x.skipPast("<");
+            if(x.more()) {
+                parse(x, jo, path.toString(), XMLParserConfiguration.ORIGINAL);
+            }
+        }
+        return jo;
+    }
 
+    /*
+    which does, inside the library, the same thing that task 5 of milestone 1 did
+    in client code, before writing to disk.
+    Are there any possible performance gains from doing this inside the library?
+    If so, implement them in your version of the library.
+     */
+    public static JSONObject toJSONObject(Reader reader, JSONPointer path, JSONObject replacement) {
+        JSONObject jo = new JSONObject();
+        XMLTokener x = new XMLTokener(reader);
+        while (x.more()) {
+            x.skipPast("<");
+            if(x.more()) {
+                parse(x, jo, path.toString(), XMLParserConfiguration.ORIGINAL);
+            }
+        }
+        return jo;
+    }
     /**
      * Convert a well-formed (but not necessarily valid) XML string into a
      * JSONObject. Some information may be lost in this transformation because

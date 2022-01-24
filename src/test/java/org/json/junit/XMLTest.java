@@ -41,13 +41,7 @@ import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.json.JSONTokener;
-import org.json.XML;
-import org.json.XMLParserConfiguration;
-import org.json.XMLXsiTypeConverter;
+import org.json.*;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -383,6 +377,29 @@ public class XMLTest {
         String expectedStr = "{\"addresses\":{\"address\":{\"street\":\"Baker "+
                 "street 5\",\"name\":\"Joe Tester\",\"content\":\" this is -- "+
                 "<another> comment \"}}}";
+        JSONObject expectedJsonObject = new JSONObject(expectedStr);
+        Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
+    }
+
+    // My New Test
+    @Test
+    public void shouldHandleSubObject() {
+        String xmlStr =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<!-- this is a comment -->\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <![CDATA[ this is -- <another> comment ]]>\n"+
+                        "       <name>Joe Tester</name>\n"+
+                        "       <!-- this is a - multi line \n"+
+                        "            comment -->\n"+
+                        "       <street>Baker street 5</street>\n"+
+                        "   </address>\n"+
+                        "</addresses>";
+        JSONPointer pointer = new JSONPointer("/addresses/address");
+        Reader reader = new StringReader(xmlStr);
+        JSONObject jsonObject = XML.toJSONObject(reader, pointer);
+        String expectedStr = "{\"street\":\"Baker "+ "street 5\"}";
         JSONObject expectedJsonObject = new JSONObject(expectedStr);
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
