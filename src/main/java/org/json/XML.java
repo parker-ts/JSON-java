@@ -26,10 +26,11 @@ SOFTWARE.
 
 import java.io.Reader;
 import java.io.StringReader;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedList;
 
 
 /**
@@ -75,6 +76,7 @@ public class XML {
     public static final String NULL_ATTR = "xsi:nil";
 
     public static final String TYPE_ATTR = "xsi:type";
+
 
     /**
      * Creates an iterator for navigating Code Points in a string instead of
@@ -253,7 +255,8 @@ public class XML {
      * @return true if the close tag is processed.
      * @throws JSONException
      */
-    private static boolean parse(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config)
+    private static boolean parse(XMLTokener x, JSONObject context, String name,
+                                 XMLParserConfiguration config)
             throws JSONException {
         char c;
         int i;
@@ -276,7 +279,6 @@ public class XML {
         token = x.nextToken();
 
         // <!
-
         if (token == BANG) {
             c = x.next();
             if (c == '-') {
@@ -432,6 +434,217 @@ public class XML {
         }
     }
 
+    // Milestone 2
+    /**
+     * Scan the content following the named tag, attaching it to the context.
+     *
+     * @param x
+     *            The XMLTokener containing the source string.
+     * @param context
+     *            The JSONObject that will include the new material.
+     * @param isReplacing
+     *            Boolean flag for replacing vs retrieving a JSON sub-object
+     * @param path
+     *            JSONPointer used to check if the desired path exists in the constructed JSON
+     * @param name
+     *            The tag name.
+     * @return true if the close tag is processed.
+     * @throws JSONException
+     */
+    private static boolean parse(XMLTokener x, JSONObject context,
+                                 Boolean isReplacing,
+                                 JSONPointer path, String name,
+                                  XMLParserConfiguration config)
+            throws JSONException {
+        char c;
+        int i;
+        JSONObject jsonObject = null;
+        String string;
+        String tagName;
+        Object token;
+        XMLXsiTypeConverter<?> xmlXsiTypeConverter;
+
+        // Test for and skip past these forms:
+        // <!-- ... -->
+        // <! ... >
+        // <![ ... ]]>
+        // <? ... ?>
+        // Report errors for these forms:
+        // <>
+        // <=
+        // <<
+
+
+        token = x.nextToken();
+
+        if (token == BANG) {
+            c = x.next();
+            if (c == '-') {
+                if (x.next() == '-') {
+                    x.skipPast("-->");
+                    return false;
+                }
+                x.back();
+            } else if (c == '[') {
+                token = x.nextToken();
+                if ("CDATA".equals(token)) {
+                    if (x.next() == '[') {
+                        string = x.nextCDATA();
+                        if (string.length() > 0) {
+                            context.accumulate(config.getcDataTagName(), string);
+                        }
+                        return false;
+                    }
+                }
+                throw x.syntaxError("Expected 'CDATA['");
+            }
+            i = 1;
+            do {
+                token = x.nextMeta();
+                if (token == null) {
+                    throw x.syntaxError("Missing '>' after '<!'.");
+                } else if (token == LT) {
+                    i += 1;
+                } else if (token == GT) {
+                    i -= 1;
+                }
+            } while (i > 0);
+            return false;
+        } else if (token == QUEST) {
+
+            // <?
+            x.skipPast("?>");
+            return false;
+        } else if (token == SLASH) {
+
+            // Close tag </
+
+            token = x.nextToken();
+            if (name == null) {
+                throw x.syntaxError("Mismatched close tag " + token);
+            }
+            if (!token.equals(name)) {
+                throw x.syntaxError("Mismatched " + name + " and " + token);
+            }
+            if (x.nextToken() != GT) {
+                throw x.syntaxError("Misshaped close tag");
+            }
+
+            return true;
+
+        } else if (token instanceof Character) {
+            throw x.syntaxError("Misshaped tag");
+
+            // Open tag <
+
+        } else {
+            tagName = (String) token;
+            token = null;
+            jsonObject = new JSONObject();
+            boolean nilAttributeFound = false;
+            xmlXsiTypeConverter = null;
+            for (;;) {
+                if (token == null) {
+                    token = x.nextToken();
+                }
+                // attribute = value
+                if (token instanceof String) {
+                    string = (String) token;
+                    token = x.nextToken();
+                    if (token == EQ) {
+                        token = x.nextToken();
+                        if (!(token instanceof String)) {
+                            throw x.syntaxError("Missing value");
+                        }
+
+                        if (config.isConvertNilAttributeToNull()
+                                && NULL_ATTR.equals(string)
+                                && Boolean.parseBoolean((String) token)) {
+                            nilAttributeFound = true;
+                        } else if (config.getXsiTypeMap() != null && !config.getXsiTypeMap().isEmpty()
+                                && TYPE_ATTR.equals(string)) {
+                            xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
+                        } else if (!nilAttributeFound) {
+                            jsonObject.accumulate(string,
+                                    config.isKeepStrings()
+                                            ? ((String) token)
+                                            : stringToValue((String) token));
+                        }
+                        token = null;
+                    } else {
+                        jsonObject.accumulate(string, "");
+                    }
+
+
+                } else if (token == SLASH) {
+                    // Empty tag <.../>
+                    if (x.nextToken() != GT) {
+                        throw x.syntaxError("Misshaped tag");
+                    }
+                    if (nilAttributeFound) {
+                        context.accumulate(tagName, JSONObject.NULL);
+                    } else if (jsonObject.length() > 0) {
+                        context.accumulate(tagName, jsonObject);
+                    } else {
+                        context.accumulate(tagName, "");
+                    }
+                    return false;
+
+                } else if (token == GT) {
+                    // Content, between <...> and </...>
+                    for (;;) {
+                        token = x.nextContent();
+                        if (token == null) {
+                            if (tagName != null) {
+                                throw x.syntaxError("Unclosed tag " + tagName);
+                            }
+                            return false;
+                        } else if (token instanceof String) {
+                            string = (String) token;
+                            if (string.length() > 0) {
+                                if (xmlXsiTypeConverter != null) {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            stringToValue(string, xmlXsiTypeConverter));
+                                } else {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            config.isKeepStrings() ? string : stringToValue(string));
+                                }
+                            }
+
+                        } else if (token == LT) {
+                            if (parse(x, jsonObject, isReplacing, path,
+                                        tagName,
+                                    config)) { //  Nested element
+                                if (jsonObject.length() == 0) {
+                                    context.accumulate(tagName, "");
+                                } else if (jsonObject.length() == 1
+                                        && jsonObject.opt(config.getcDataTagName()) != null) {
+                                    context.accumulate(tagName, jsonObject.opt(config.getcDataTagName()));
+                                } else {
+                                    context.accumulate(tagName, jsonObject);
+                                }
+
+                                // Milestone 2
+
+                                // Test if the current context JSONObject contains the path
+                                // && If we are retrieving the subobject and should
+                                // exit early if found
+                                if(context.optQuery(path) != null && !isReplacing) {
+                                    // Abort any remaining recursion operations with an Exception.
+                                    throw new JSONException("Subobject found, exiting " +
+                                            "recursive parse.");
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
+
     /**
      * This method tries to convert the given string value to the target object
      * @param string String to convert
@@ -556,41 +769,125 @@ public class XML {
                 || val.indexOf('E') > -1 || "-0".equals(val);
     }
 
-    /*
-    which does, inside the library, the same thing that task 2 of milestone 1 did in client code,
-    before writing to disk. Being this done inside the library,
-    you should be able to do it more efficiently.
-    Specifically, you shouldn't need to read the entire XML file,
-    as you can stop parsing it as soon as you find the object in question.
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * All values are converted as strings, for 1, 01, 29.0 will not be coerced to
+     * numbers but will instead be the exact value as seen in the XML document.
+     *
+     * @param reader The XML source reader.
+     * @param path The JSONPointer path for querying a JSON subObject.
+     * @return A JSONObject containing a subObject extracted the XML
+     * string.
+     * @throws JSONException Thrown if there is an error while parsing.
      */
+    // Milestone 2
+    // Task 1: Retrieve JSON SubObject
     public static JSONObject toJSONObject(Reader reader, JSONPointer path) {
         JSONObject jo = new JSONObject();
+        JSONObject subObj = new JSONObject();
         XMLTokener x = new XMLTokener(reader);
-        while (x.more()) {
-            x.skipPast("<");
-            if(x.more()) {
-                parse(x, jo, path.toString(), XMLParserConfiguration.ORIGINAL);
+        try {
+            while (x.more()) {
+                x.skipPast("<");
+                if(x.more()) {
+                    parse(x, jo, false, path, null, XMLParserConfiguration.ORIGINAL);
+                }
+            }
+        } catch (JSONException e) {
+            Object sub = jo.query(path);
+            if(sub instanceof JSONArray) {
+                System.err.println("Unable to return a JSONArray. Returning empty JSONObject.");
+            } else {
+                subObj = (JSONObject) sub;
             }
         }
-        return jo;
+        return subObj;
     }
 
-    /*
-    which does, inside the library, the same thing that task 5 of milestone 1 did
-    in client code, before writing to disk.
-    Are there any possible performance gains from doing this inside the library?
-    If so, implement them in your version of the library.
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * All values are converted as strings, for 1, 01, 29.0 will not be coerced to
+     * numbers but will instead be the exact value as seen in the XML document.
+     *
+     * @param reader The XML source reader.
+     * @param path The JSONPointer path for querying a JSON subObject.
+     * @param replacement A JSONObject containing the new JSON that will replace the path-targeted
+     *                    subObject.
+     * @return A JSONObject containing the structured data from the XML string, with the
+     * path-targeted subObject replaced.
+     * @throws JSONException Thrown if there is an error while parsing.
      */
+    // Milestone 2 -- Replace Subobject
     public static JSONObject toJSONObject(Reader reader, JSONPointer path, JSONObject replacement) {
         JSONObject jo = new JSONObject();
         XMLTokener x = new XMLTokener(reader);
         while (x.more()) {
             x.skipPast("<");
             if(x.more()) {
-                parse(x, jo, path.toString(), XMLParserConfiguration.ORIGINAL);
+                parse(x, jo, true, path, "book", XMLParserConfiguration.ORIGINAL);
             }
         }
-        return jo;
+        // Test if the path exists
+        if(jo.optQuery(path) != null) {
+            // Deconstruct/unwrap the json to the lowest desired level, replace, then
+            // reconstruct the json in reverse
+
+            LinkedList<JSONObject> jobjs = new LinkedList<JSONObject>();
+            jobjs.add(jo);
+            ArrayList<String> pathList = new ArrayList<String>();
+            // Build ArrayList containing individual JSONPointer path strings
+            // e.g. /books/books -> pathList["books", "book"]
+            for(String str : path.toString().split("/")) {
+                if(!str.equals("")) {
+                    pathList.add(str);
+                }
+            }
+            // Build linkedlist of nested json objects but replacing target subobj
+            for(int i = 0; i < pathList.size(); i++) {
+                jobjs.add(jobjs.get(i).getJSONObject(pathList.get(i)));
+            }
+
+            // Rebuild JSON object to return from linkedlist
+            // iterate last -> first (smaller JSONObject - > bigger JSONObject)
+            Iterator<JSONObject> iter = jobjs.descendingIterator();
+            JSONObject jobj = replacement;
+            boolean firstLoop = true;
+            while(iter.hasNext()) {
+                JSONObject currentObj = iter.next();
+                if(firstLoop) {
+                    firstLoop = false;
+                } else {
+                    String root = pathList.get(pathList.size()-1);
+                    currentObj.put(root, jobj);
+                    pathList.remove(pathList.size()-1);
+                    jobj = currentObj;
+                }
+            }
+            return jobj;
+        } else {
+            System.err.println("Invalid JSONPointer: no JSON SubObject found. Returning null.");
+            return null;
+        }
     }
     /**
      * Convert a well-formed (but not necessarily valid) XML string into a

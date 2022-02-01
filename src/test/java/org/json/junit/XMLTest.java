@@ -361,7 +361,7 @@ public class XMLTest {
     @Test
     public void shouldHandleCommentsInXML() {
 
-        String xmlStr = 
+        String xmlStr =
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
                 "<!-- this is a comment -->\n"+
                 "<addresses>\n"+
@@ -381,26 +381,69 @@ public class XMLTest {
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
 
-    // My New Test
+    // Milestone 2
+    // Student Added Test -- Retrieving Sub Object
     @Test
-    public void shouldHandleSubObject() {
+    public void shouldRetrieveSubObject() {
         String xmlStr =
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
-                        "<!-- this is a comment -->\n"+
+                        "<books>\n"+
+                        "   <book>\n" +
+                        "       <author>Jane Tester</author>\n"+
+                        "   </book>\n"+
+                        "</books>" +
                         "<addresses>\n"+
                         "   <address>\n"+
-                        "       <![CDATA[ this is -- <another> comment ]]>\n"+
+                        "       <name>Alex Kitsuragi</name>\n"+
+                        "   </address>\n"+
+                        "</addresses>" +
+                        "<characters>\n"+
+                        "   <fictional>\n" +
+                        "       <name>John Tester</name>\n"+
+                        "   </fictional>\n"+
+                        "</characters>";
+        JSONPointer pointer = new JSONPointer("/addresses/address");
+        Reader reader = new StringReader(xmlStr);
+        JSONObject jsonObject = XML.toJSONObject(reader, pointer);
+        String expectedStr = "{\"name\":\"Alex Kitsuragi\"}";
+        JSONObject expectedJsonObject = new JSONObject(expectedStr);
+        Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
+    }
+
+    // Milestone 2
+    // Student Added Test -- Replacing Sub Object
+    @Test
+    public void shouldReplaceSubObject() {
+        String xmlStr =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<addresses xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""+
+                        "   xsi:noNamespaceSchemaLocation='test.xsd'>\n"+
+                        "   <address>\n"+
                         "       <name>Joe Tester</name>\n"+
-                        "       <!-- this is a - multi line \n"+
-                        "            comment -->\n"+
-                        "       <street>Baker street 5</street>\n"+
+                        "       <street>[CDATA[Baker street 5]</street>\n"+
+                        "       <NothingHere/>\n"+
+                        "       <TrueValue>true</TrueValue>\n"+
+                        "       <FalseValue>false</FalseValue>\n"+
+                        "       <NullValue>null</NullValue>\n"+
+                        "       <PositiveValue>42</PositiveValue>\n"+
+                        "       <NegativeValue>-23</NegativeValue>\n"+
+                        "       <DoubleValue>-23.45</DoubleValue>\n"+
+                        "       <Nan>-23x.45</Nan>\n"+
+                        "       <ArrayOfNum>1, 2, 3, 4.1, 5.2</ArrayOfNum>\n"+
                         "   </address>\n"+
                         "</addresses>";
         JSONPointer pointer = new JSONPointer("/addresses/address");
         Reader reader = new StringReader(xmlStr);
-        JSONObject jsonObject = XML.toJSONObject(reader, pointer);
-        String expectedStr = "{\"street\":\"Baker "+ "street 5\"}";
+        final String json = "{\"name\":\"Alex Kitsuragi\"}";
+        JSONObject replacement = new JSONObject(json);
+        JSONObject jsonObject = XML.toJSONObject(reader, pointer, replacement);
+        String expectedStr =
+                "{\"addresses\":{\"address\":{\"name\":\"Alex Kitsuragi\"}," +
+                        "\"xsi:noNamespaceSchemaLocation\":"+
+                        "\"test.xsd\",\"xmlns:xsi\":\"http://www.w3.org/2001/"+
+                        "XMLSchema-instance\"}}";
         JSONObject expectedJsonObject = new JSONObject(expectedStr);
+        assert jsonObject != null;
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
 
