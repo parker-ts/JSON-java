@@ -40,6 +40,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.json.*;
 import org.junit.Rule;
@@ -446,6 +447,31 @@ public class XMLTest {
         assert jsonObject != null;
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
+
+    // Milestone 3
+    // Student Added Test -- Adding a prefix to all keys/tags
+    @Test
+    public void shouldAddKeyPrefix() {
+        String xmlStr =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<!-- this is a comment -->\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <name>Joe Tester</name>\n"+
+                        "       <!-- this is a - multi line \n"+
+                        "            comment -->\n"+
+                        "       <street>Baker street 5</street>\n"+
+                        "   </address>\n"+
+                        "</addresses>";
+        Function<String, String> keyReplace = s -> "swe262_" + s;
+        Reader reader = new StringReader(xmlStr);
+        JSONObject jsonObject = XML.toJSONObject(reader, keyReplace);
+        String expectedStr = "{\"swe262_addresses\":{\"swe262_address\":{\"swe262_street\":\"Baker "+
+                "street 5\",\"swe262_name\":\"Joe Tester\"}}}";
+        JSONObject expectedJsonObject = new JSONObject(expectedStr);
+        Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
+    }
+
 
     /**
      * Valid XML to XML.toString()
