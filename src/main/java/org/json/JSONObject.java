@@ -36,16 +36,13 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Collection;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.ResourceBundle;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * A JSONObject is an unordered collection of name/value pairs. Its external
@@ -494,6 +491,66 @@ public class JSONObject {
             this.put(key, new JSONArray().put(object).put(value));
         }
         return this;
+    }
+
+    // Milestone 4 -- toStream operations
+    /**
+     * JSONSpliterator inner class for implementing a Spliterator that can traverse JSONObjects.
+     */
+    static class JSONSpliterator implements Spliterator<JSONObject> {
+        private JSONObject node;
+
+        JSONSpliterator(JSONObject j) {
+            node = j;
+        }
+
+        @Override
+        public boolean tryAdvance(Consumer<? super JSONObject> action) {
+            JSONObject current = node;
+
+            action.accept(current);
+
+            Map.Entry<String, Object> entry = current.toMap().entrySet().iterator().next();
+            if(entry.getValue() instanceof Map) {
+                Map<String, Object> outerMap = (Map<String, Object>) entry.getValue();
+                node = new JSONObject(outerMap);
+                tryAdvance(action);
+                // return true;
+            } else if(entry.getValue() instanceof ArrayList) {
+                ArrayList<Object> jl = (ArrayList<Object>) entry.getValue();
+                jl.forEach(item -> {
+                    Map<String, Object> innerMap = (Map<String, Object>) item;
+                    node = new JSONObject(innerMap);
+                    tryAdvance(action);
+                });
+            }
+            return false;
+        }
+
+        @Override
+        public int characteristics() {
+            return Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
+        }
+
+        @Override
+        public long estimateSize() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public Spliterator<JSONObject> trySplit() {
+            return null;
+        }
+    }
+
+    /**
+     * toStream method for returning a Stream of a JSONObject.
+     * @return gives a stream based on the traversal of a spliterator
+     */
+    public Stream<JSONObject> toStream() {
+        JSONObject jo = this;
+        JSONSpliterator split = new JSONSpliterator(jo);
+        return StreamSupport.stream(split, false);
     }
 
     /**
@@ -1626,9 +1683,6 @@ public class JSONObject {
      * Searches the class hierarchy to see if the method or it's super
      * implementations and interfaces has the annotation. Returns the depth of the
      * annotation in the hierarchy.
-     *
-     * @param <A>
-     *            type of the annotation
      *
      * @param m
      *            method to check

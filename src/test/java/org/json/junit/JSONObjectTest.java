@@ -239,7 +239,20 @@ public class JSONObjectTest {
         assert str.equals(actualString) : "Incorrect key value. Got "
                 + actualString + " expected " + str;
     }
-    
+
+    //Milestone 4 tests
+    @Test
+    public void jsonStream() {
+        JSONObject obj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
+        obj.toStream().forEach(node -> System.out.println(node.toString()));
+        List<String> titles = new ArrayList<>();
+        obj.toStream().filter(node -> node.has("title")).forEach((node -> titles.add((String) node.get(
+                "title"))));
+        assertEquals(titles.get(0), "AAA");
+        assertEquals(titles.get(1), "BBB");
+
+    }
+
     /**
      * A JSONObject can be created with no content
      */
