@@ -1125,9 +1125,10 @@ public class XML {
         });
         jthr.start();
 
-        // Wait for thread to finish
-        while(jthr.isAlive()) {
-            System.out.println("Waiting for Thread " + jthr.getId() + " to process.");
+        try {
+            jthr.join();
+        } catch (InterruptedException ie) {
+            failFunc.accept(ie);
         }
     }
 

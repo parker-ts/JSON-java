@@ -240,9 +240,10 @@ public class JSONObjectTest {
                 + actualString + " expected " + str;
     }
 
-    //Milestone 4 Tests
+    //Milestone 4
+    // Student Added Tests 4.1 -- forEach & Filter
     @Test
-    public void jsonStream() {
+    public void jsonStreamFilterTest() {
         JSONObject obj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
         obj.toStream().forEach(node -> System.out.println(node.toString()));
         List<String> titles = new ArrayList<>();
@@ -250,7 +251,19 @@ public class JSONObjectTest {
                 "title"))));
         assertEquals(titles.get(0), "AAA");
         assertEquals(titles.get(1), "BBB");
+    }
 
+    // Student Added Tests 4.2 -- Reduce
+    @Test
+    public void jsonStreamReduceTest() {
+        JSONObject obj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
+
+        // Create new jobj with duplicate elements accumulated from the original jobj
+        JSONObject reduceObj = obj.toStream().reduce(new JSONObject(),
+                (jobj, el) -> jobj.accumulate(el.keySet().toArray()[0].toString(), el));
+
+        assertNotNull(reduceObj);
+        assertTrue(reduceObj.toMap().size() > obj.toMap().size());
     }
 
     /**

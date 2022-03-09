@@ -33,6 +33,7 @@ import static org.junit.Assert.fail;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import org.json.*;
@@ -376,7 +377,7 @@ public class XMLTest {
     }
 
     // Milestone 2
-    // Student Added Test -- Retrieving Sub Object
+    // Student Added Test 2.1 -- Retrieving Sub Object
     @Test
     public void shouldRetrieveSubObject() {
         String xmlStr =
@@ -404,8 +405,7 @@ public class XMLTest {
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
 
-    // Milestone 2
-    // Student Added Test -- Replacing Sub Object
+    // Student Added Test 2.2 -- Replacing Sub Object
     @Test
     public void shouldReplaceSubObject() {
         String xmlStr =
@@ -442,7 +442,7 @@ public class XMLTest {
     }
 
     // Milestone 3
-    // Student Added Test -- Adding a prefix to all keys/tags
+    // Student Added Test 3.1 -- Adding a prefix to all keys/tags
     @Test
     public void shouldAddKeyPrefix() {
         String xmlStr =
@@ -465,8 +465,40 @@ public class XMLTest {
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
 
+    // Student Added Test 3.2 -- JSONException thrown and handled
+    @Test
+    public void shouldHandleKeyPrefixError() {
+        // This xml is missing a closing "address" tag
+        String badXmlStr =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<!-- this is a comment -->\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <name>Joe Tester</name>\n"+
+                        "       <!-- this is a - multi line \n"+
+                        "            comment -->\n"+
+                        "       <street>Baker street 5</street>\n"+
+                        "   </address>\n";
+        Function<String, String> keyReplace = s -> "swe262_" + s;
+        Reader reader = new StringReader(badXmlStr);
+        boolean errorThrown = false;
+
+        try {
+            JSONObject jsonObject = XML.toJSONObject(reader, keyReplace);
+            String expectedStr = "{\"swe262_addresses\":{\"swe262_address\":{\"swe262_street\":\"Baker "+
+                    "street 5\",\"swe262_name\":\"Joe Tester\"}}}";
+            JSONObject expectedJsonObject = new JSONObject(expectedStr);
+            Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
+        } catch (Exception e) {
+            System.err.println("Error: " + e);
+            errorThrown = true;
+        }
+
+        assertTrue(errorThrown);
+    }
+
     // Milestone 5
-    // Student Added Test
+    // Student Added Test 5.1
     @Test
     public void shouldHandleAsync() {
         String xmlStr =
@@ -491,7 +523,82 @@ public class XMLTest {
         JSONObject expectedJsonObject = new JSONObject(expectedStr);
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
-    
+
+    // Student Added Test 5.2
+    @Test
+    public void shouldHandleMultiAsync() {
+        String xmlStr1 =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <name>Joe Tester</name>\n" +
+                        "       <street>Baker street 5</street>\n"+
+                        "   </address>\n"+
+                        "</addresses>";
+        String xmlStr2 =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <name>Elise Tester</name>\n" +
+                        "       <street>Style Street 10</street>\n"+
+                        "   </address>\n"+
+                        "</addresses>";
+        Reader reader1 = new StringReader(xmlStr1);
+        StringWriter writer1 = new StringWriter();
+
+        Reader reader2 = new StringReader(xmlStr2);
+        StringWriter writer2 = new StringWriter();
+
+        XML.toJSONObject(reader1,
+                (JSONObject jo) -> jo.write(writer1),
+                (Exception e) -> System.err.println("Error in Thread: " + e));
+
+        XML.toJSONObject(reader2,
+                (JSONObject jo) -> jo.write(writer2),
+                (Exception e) -> System.err.println("Error in Thread: " + e));
+
+        JSONObject jsonObject1 = new JSONObject(writer1.toString());
+        JSONObject jsonObject2 = new JSONObject(writer2.toString());
+
+        String expectedStr1 = "{\"addresses\":{\"address\":{\"street\":\"Baker "+
+                "street 5\",\"name\":\"Joe Tester\"}}}";
+        JSONObject expectedJsonObject1 = new JSONObject(expectedStr1);
+
+        String expectedStr2 = "{\"addresses\":{\"address\":{\"street\":\"Style "+
+                "Street 10\",\"name\":\"Elise Tester\"}}}";
+        JSONObject expectedJsonObject2 = new JSONObject(expectedStr2);
+
+        Util.compareActualVsExpectedJsonObjects(jsonObject1,expectedJsonObject1);
+        Util.compareActualVsExpectedJsonObjects(jsonObject2,expectedJsonObject2);
+    }
+
+    // Student Added Test 5.3
+    @Test
+    public void shouldHandleAsyncError() {
+
+        // This xml is missing the closing bracket for "addresses"
+        String badXmlStr =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <name>Joe Tester</name>\n" +
+                        "       <street>Baker street 5</street>\n"+
+                        "   </address>\n";
+        Reader reader = new StringReader(badXmlStr);
+        StringWriter writer = new StringWriter();
+        AtomicBoolean errorThrown = new AtomicBoolean(false);
+
+        // Error should be thrown
+        XML.toJSONObject(reader,
+                (JSONObject jo) -> jo.write(writer),
+                (Exception e) -> {
+            errorThrown.set(true);
+            System.err.println("Error in Thread: " + e);
+        });
+
+        assertTrue(errorThrown.get());
+    }
+
     /**
      * Valid XML to XML.toString()
      */
