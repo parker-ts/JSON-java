@@ -240,7 +240,7 @@ public class JSONObjectTest {
                 + actualString + " expected " + str;
     }
 
-    //Milestone 4 tests
+    //Milestone 4 Tests
     @Test
     public void jsonStream() {
         JSONObject obj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");

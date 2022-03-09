@@ -30,14 +30,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringReader;
+import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -472,7 +465,33 @@ public class XMLTest {
         Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
     }
 
+    // Milestone 5
+    // Student Added Test
+    @Test
+    public void shouldHandleAsync() {
+        String xmlStr =
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+                        "<addresses>\n"+
+                        "   <address>\n"+
+                        "       <name>Joe Tester</name>\n" +
+                        "       <street>Baker street 5</street>\n"+
+                        "   </address>\n"+
+                        "</addresses>";
+        Reader reader = new StringReader(xmlStr);
+        StringWriter writer = new StringWriter();
 
+        XML.toJSONObject(reader,
+                (JSONObject jo) -> jo.write(writer),
+                (Exception e) -> System.err.println("Error in Thread: " + e));
+
+        JSONObject jsonObject = new JSONObject(writer.toString());
+
+        String expectedStr = "{\"addresses\":{\"address\":{\"street\":\"Baker "+
+                "street 5\",\"name\":\"Joe Tester\"}}}";
+        JSONObject expectedJsonObject = new JSONObject(expectedStr);
+        Util.compareActualVsExpectedJsonObjects(jsonObject,expectedJsonObject);
+    }
+    
     /**
      * Valid XML to XML.toString()
      */

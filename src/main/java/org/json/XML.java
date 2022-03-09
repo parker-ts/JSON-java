@@ -26,11 +26,13 @@ SOFTWARE.
 
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.Writer;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 
@@ -1107,6 +1109,26 @@ public class XML {
             }
         }
         return jo;
+    }
+
+    // Milestone 5 -- Create Thread to handle passed methods
+    public static void toJSONObject(Reader reader, Consumer<JSONObject> okFunc,
+                                      Consumer<Exception> failFunc) {
+        Thread jthr = new Thread(() -> {
+            JSONObject jobj = new JSONObject();
+            try {
+                jobj = toJSONObject(reader);
+            } catch (Exception e) {
+                failFunc.accept(e);
+            }
+            okFunc.accept(jobj);
+        });
+        jthr.start();
+
+        // Wait for thread to finish
+        while(jthr.isAlive()) {
+            System.out.println("Waiting for Thread " + jthr.getId() + " to process.");
+        }
     }
 
     /**
